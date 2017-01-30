@@ -1,6 +1,10 @@
 ;;; declarations to reduce the size of the .o file
 
-(declare (standard-bindings)(extended-bindings)(block)(fixnum)(not safe))
+(declare (standard-bindings)
+         (extended-bindings)
+         (block)
+         (fixnum)
+         (not safe))
 
 ;;; The following macro is used to determine whether certain keyword arguments
 ;;; were omitted.  It is specific to Gambit-C's compiler.
@@ -1540,66 +1544,84 @@
 							      safe?))
 		(getter               (array-getter array)))
            (if (eq? result-storage-class generic-storage-class)   ;; checker always returns #t
-               (let ((body      (array-body result))
+               (let ((body      (array-body result)))
                      ;; The result's indexer steps from 0 to (vector-length body) so we
                      ;; use that fact here instead of calling (array-indexer result).
-                     (index     0))
                  (##interval-for-each
                   (case (##interval-dimension domain)
-                    ((1)  (lambda (i)
-                            (vector-set! body index (getter i))
-                            (set! index (fx+ index 1))))
-                    ((2)  (lambda (i j)
-                            (vector-set! body index (getter i j))
-                            (set! index (fx+ index 1))))
-                    ((3)  (lambda (i j k)
-                            (vector-set! body index (getter i j k))
-                            (set! index (fx+ index 1))))
-                    ((4)  (lambda (i j k l)
-                            (vector-set! body index (getter i j k l))
-                            (set! index (fx+ index 1))))
-                    (else (lambda multi-index
-                            (vector-set! body index (apply getter multi-index))
-                            (set! index (fx+ index 1)))))
+                    ((1)  (let ((index 0))
+                            (lambda (i)
+                              (vector-set! body index (getter i))
+                              (set! index (fx+ index 1)))))
+                    ((2)  (let ((index 0))
+                            (lambda (i j)
+                              (vector-set! body index (getter i j))
+                              (set! index (fx+ index 1)))))
+                    ((3)  (let ((index 0))
+                            (lambda (i j k)
+                              (vector-set! body index (getter i j k))
+                              (set! index (fx+ index 1)))))
+                    ((4)  (let ((index 0))
+                            (lambda (i j k l)
+                              (vector-set! body index (getter i j k l))
+                              (set! index (fx+ index 1)))))
+                    (else (let ((index 0))
+                            (lambda multi-index
+                              (vector-set! body index (apply getter multi-index))
+                              (set! index (fx+ index 1))))))
                   domain))
                (let ((checker              (storage-class-checker result-storage-class))
                      (body                 (array-body result))
-                     (storage-class-setter (storage-class-setter result-storage-class))
+                     (storage-class-setter (storage-class-setter result-storage-class)))
                      ;; The result's indexer steps from 0 to (vector-length body) so we
                      ;; use that fact here instead of calling (array-indexer result).
-                     (index                0))
                  (##interval-for-each
                   (case (##interval-dimension domain)
-                    ((1)  (lambda (i)
-                            (let ((item (getter i)))
-                              (if (checker item)
-                                  (begin (storage-class-setter body index item) (set! index (fx+ index 1)))
-                                  (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
-                                         array result-storage-class safe?)))))
-                    ((2)  (lambda (i j)
-                            (let ((item (getter i j)))
-                              (if (checker item)
-                                  (begin (storage-class-setter body index item) (set! index (fx+ index 1)))
-                                  (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
-                                         array result-storage-class safe?)))))
-                    ((3)  (lambda (i j k)
-                            (let ((item (getter i j k)))
-                              (if (checker item)
-                                  (begin (storage-class-setter body index item) (set! index (fx+ index 1)))
-                                  (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
-                                         array result-storage-class safe?)))))
-                    ((4)  (lambda (i j k l)
-                            (let ((item (getter i j k l)))
-                              (if (checker item)
-                                  (begin (storage-class-setter body index item) (set! index (fx+ index 1)))
-                                  (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
-                                         array result-storage-class safe?)))))
-                    (else (lambda multi-index
-                            (let ((item (apply getter multi-index)))
-                              (if (checker item)
-                                  (begin (storage-class-setter body index item) (set! index (fx+ index 1)))
-                                  (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
-                                         array result-storage-class safe?))))))
+                    ((1)  (let ((index 0))
+                            (lambda (i)
+                              (let ((item (getter i)))
+                                (if (checker item)
+                                    (begin
+                                      (storage-class-setter body index item)
+                                      (set! index (fx+ index 1)))
+                                    (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
+                                           array result-storage-class safe?))))))
+                    ((2)  (let ((index 0))
+                            (lambda (i j)
+                              (let ((item (getter i j)))
+                                (if (checker item)
+                                    (begin
+                                      (storage-class-setter body index item)
+                                      (set! index (fx+ index 1)))
+                                    (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
+                                           array result-storage-class safe?))))))
+                    ((3)  (let ((index 0))
+                            (lambda (i j k)
+                              (let ((item (getter i j k)))
+                                (if (checker item)
+                                    (begin
+                                      (storage-class-setter body index item)
+                                      (set! index (fx+ index 1)))
+                                    (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
+                                           array result-storage-class safe?))))))
+                    ((4)  (let ((index 0))
+                            (lambda (i j k l)
+                              (let ((item (getter i j k l)))
+                                (if (checker item)
+                                    (begin
+                                      (storage-class-setter body index item)
+                                      (set! index (fx+ index 1)))
+                                    (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
+                                           array result-storage-class safe?))))))
+                    (else (let ((index 0))
+                            (lambda multi-index
+                              (let ((item (apply getter multi-index)))
+                                (if (checker item)
+                                    (begin
+                                      (storage-class-setter body index item)
+                                      (set! index (fx+ index 1)))
+                                    (error "array->specialized-array: not all elements of the array can be manipulated by the storage class: "
+                                           array result-storage-class safe?)))))))
                   domain)))
 	   result))))
 
@@ -2679,5 +2701,40 @@
 			       (cdr local)))
 		       (error "list->specialized-array: Not every element of the list can be stored in the body of the array: " l interval)))))))))
 
-
+(define (array-assign! destination source)
+  (cond ((not (mutable-array? destination))
+         (error "array-assign!: The first argument is not a mutable array: " destination source))
+        ((not (array? source))
+         (error "array-assign!: The second argument is not an array: " destination source))
+        ((not (interval= (array-domain destination)
+                         (array-domain source)))
+         (error "array-assign!: The arguments do not have the same domain: " destination source))
+        (else
+         (let ((source-getter
+                (array-getter source))
+               (destination-setter
+                (array-setter destination))
+               (domain
+                (array-domain destination)))
+           (interval-for-each
+            (case (interval-dimension domain)
+              ((1) (lambda (i)
+                     (destination-setter (source-getter i)
+                                         i)))
+              ((2) (lambda (i j)
+                     (destination-setter (source-getter i j)
+                                         i j)))
+              ((3) (lambda (i j k)
+                     (destination-setter (source-getter i j k)
+                                         i j k)))
+              ((4) (lambda (i j k l)
+                     (destination-setter (source-getter i j k l)
+                                         i j k l)))
+              (else
+               (lambda multi-index
+                 (apply destination-setter
+                        (apply source-getter multi-index)
+                        multi-index))))
+            domain)))))
+                              
 (declare (inline))

@@ -1,6 +1,6 @@
 ;;(declare (standard-bindings)(extended-bindings)(block)(not safe) (fixnum))
 (declare (inlining-limit 0))
-(define tests 100)
+(define tests 1000)
 
 (define-macro (test expr value)
   `(let* (;(ignore (pretty-print ',expr))
@@ -418,6 +418,16 @@
 	       lower)))
     (make-interval (list->vector lower)
 		   (list->vector upper))))
+
+(define (random-subinterval interval)
+  (let* ((lowers (interval-lower-bounds->vector interval))
+         (uppers (interval-upper-bounds->vector interval))
+         (new-lowers (##vector-map random lowers uppers))
+         (new-uppers (##vector-map (lambda (x) (+ x 1))
+                                   (##vector-map random new-lowers uppers)))
+         (subinterval (make-interval new-lowers new-uppers)))
+    subinterval))
+                                 
 
 (define (random-nonnegative-interval #!optional (min 1) (max 11) )
   ;; a random interval with min <= dimension < max
@@ -1978,6 +1988,59 @@
                     my-reversed-array)
           #t)))
 
+(pp "array-assign! tests")
+
+(test (array-assign! 'a 'a)
+      "array-assign!: The first argument is not a mutable array: ")
+
+(test (array-assign! (make-array (make-interval '#(0 0) '#(1 1)) values) 'a)
+      "array-assign!: The first argument is not a mutable array: ")
+
+(test (array-assign! (array->specialized-array (make-array (make-interval '#(0 0) '#(1 1)) values)) 'a)
+      "array-assign!: The second argument is not an array: ")
+
+(test (array-assign! (array->specialized-array (make-array (make-interval '#(0 0) '#(1 1)) values))
+                     (make-array (make-interval '#(0 0) '#(2 1)) values))
+      "array-assign!: The arguments do not have the same domain: ")
+
+(do ((i 0 (fx+ i 1)))
+    ((fx= i tests))
+  (let* ((interval
+          (random-interval 1 6))
+         (subinterval
+          (random-subinterval interval))
+         (specialized-array
+          (array->specialized-array (make-array interval list)))
+         (mutable-array
+          (let ((specialized-array (array->specialized-array (make-array interval list))))
+            (make-array interval
+                        (array-getter specialized-array)
+                        (array-setter specialized-array))))
+         (specialized-subarray
+          (array-extract specialized-array subinterval))
+         (mutable-subarray
+          (array-extract mutable-array subinterval))
+         (new-subarray
+          (array->specialized-array (make-array subinterval (lambda args (reverse args))))))
+    (array-assign! specialized-subarray new-subarray)
+    (array-assign! mutable-subarray new-subarray)
+    (if (not (myarray= specialized-array
+                       (make-array interval
+                                   (lambda multi-index
+                                     (if (apply interval-contains-multi-index? subinterval multi-index)
+                                         (reverse multi-index)
+                                         multi-index)))))
+        (error "arggh"))
+    (test (myarray= mutable-array
+                    (make-array interval
+                                (lambda multi-index
+                                  (if (apply interval-contains-multi-index? subinterval multi-index)
+                                      (reverse multi-index)
+                                      multi-index))))
+          #t)))
+         
+         
+
 (pp "Miscellaneous error tests")
 
 (test (make-array (make-interval '#(0 0) '#(10 10))
@@ -2449,3 +2512,74 @@
                (Haar-inverse-transform specialized-image)))
   (time (begin (Haar-transform mutable-image)
                (Haar-inverse-transform mutable-image))))
+
+(define A
+  (array->specialized-array
+   (make-array (make-interval '#(0 0)
+                              '#(4 4))
+               (lambda (i j)
+                 (/ (+ 1 i j))))))
+
+(define (array-display A)
+  (array-for-each (lambda (row)
+                    (array-for-each (lambda (x)
+                                      (display x)
+                                      (display "\t"))
+                                    row)
+                    (newline))
+                  (array-curry A 1)))
+
+(display "\nHilbert matrix:\n\n")
+
+(array-display A)
+
+(define (LU-decomposition A)
+  ;; Assumes the domain of A is [0,n)\\times [0,n)
+  ;; and that Gaussian elimination can be applied
+  ;; without pivoting.
+  (let ((n
+         (interval-upper-bound (array-domain A) 0))
+        (getter
+         (array-getter A)))
+    (do ((i 0 (fx+ i 1)))
+        ((= i (fx- n 1)) A)
+      (let* ((pivot
+              (getter i i))
+             (column
+              ;; the column below the (i,i) entry
+              (array-extract
+               A (make-interval
+                  (vector (fx+ i 1) i)
+                  (vector n         (fx+ i 1)))))
+             ;; the subarray to the right and
+             ;;below the (i,i) entry
+             (subarray
+              (array-extract
+               A (make-interval
+                  (vector (fx+ i 1) (fx+ i 1))
+                  (vector n         n)))))
+        ;; compute multipliers
+        (array-assign!
+         column
+         (array-map (lambda (x)
+                      (/ x pivot))
+                    column))
+        ;; subtract the outer product of i'th
+        ;; row and column from the subarray
+        (array-assign!
+         subarray
+         (array-map -
+                    subarray
+                    (make-array
+                     (array-domain subarray)
+                     (lambda (l m)
+                       (* (getter l i)
+                          (getter i m))))))))))
+
+(LU-decomposition A)
+
+(display "\nLU decomposition of Hilbert matrix:\n\n")
+
+(array-display A)
+
+
