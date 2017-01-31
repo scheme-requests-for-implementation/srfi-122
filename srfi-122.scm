@@ -72,6 +72,9 @@ MathJax.Hub.Config({
 	      (<li> "Draft #15 published: 2016/12/15")
 	      (<li> "Finalized: 2016/12/24"))
 
+        (<h2> "Post-finalization note")
+        (<p> "This document, the associated implementation in generic-arrays.scm, and the test file test-arrays.scm includes a procedure "(<code>'array-assign!)" that is not in the SRFI as finalized on 2016/12/24.")
+
 	(<h2> "Abstract")
 	(<p> 
 	 "This SRFI specifies an array mechanism for Scheme. Arrays as defined here are quite general; at their most basic, an array is simply a "
@@ -300,7 +303,8 @@ they may have hash tables or databases behind an implementation, one may read th
                  (<a> href: "#array-any" "array-any")END
                  (<a> href: "#array-every" "array-every")END
                  (<a> href: "#array->list" "array->list") END
-                 (<a> href: "#list->specialized-array" "list->specialized-array")
+                 (<a> href: "#list->specialized-array" "list->specialized-array") END
+                 (<a> href: "#array-assign!" "array-assign!")
                  "."
                  )))
         (<h2> "Miscellaneous Functions")
@@ -519,7 +523,7 @@ $[l_0,u_0)\\times[l_1,u_1)\\times\\cdots\\times[l_{d-1},u_{d-1})$,
 then the result represents the cross product
 $[l_{\\pi_0},u_{\\pi_0})\\times[l_{\\pi_1},u_{\\pi_1})\\times\\cdots\\times[l_{\\pi_{d-1}},u_{\\pi_{d-1}})$.")
 (<p> "For example, if the argument interval represents $[0,4)\\times[0,8)\\times[0,21)\\times [0,16)$ and the
-permutation is "(<code>'#(3 0 1 2))", then the result of "(<code> "(interval-permuate "(<var>'interval)" "(<var>' permutation)")")" will be
+permutation is "(<code>'#(3 0 1 2))", then the result of "(<code> "(interval-permute "(<var>'interval)" "(<var>' permutation)")")" will be
 the representation of $[0,16)\\times [0,4)\\times[0,8)\\times[0,21)$.")
 
 (format-lambda-list '(interval-scale interval scales))
@@ -829,27 +833,19 @@ indexer:       (lambda multi-index
 "
   ))
 (<p> "This \"shearing\" operation cannot be achieved by combining the procedures "(<code>'array-extract)", "(<code>'array-translate)", "(<code>'array-permute)", "(<code>'array-translate)", "(<code>'array-curry)", "(<code>'array-reverse)", and "(<code>'array-sample)".")
+
 (format-lambda-list '(array->specialized-array array #\[ result-storage-class "generic-storage-class" #\] #\[ safe? "(specialized-array-default-safe?)" #\]))
 (<p> "If "(<code>(<var> 'array))" is an array whose elements can be manipulated by the storage-class
-"(<code>(<var> 'result-storage-class))", then the specialized-array returned by "(<code> 'array->specialized-array)" can be defined by:")
+"(<code>(<var> 'result-storage-class))", then the specialized-array returned by "(<code> 'array->specialized-array)" can be defined conceptually by:")
 (<pre>
  (<code>"
 (let* ((domain
         (array-domain "(<var>'array)"))
-       (getter
-        (array-getter "(<var>'array)"))
        (result
         (make-specialized-array domain
                                 "(<var>'result-storage-class)"
-                                "(<var>'safe?)"))
-       (result-setter
-        (array-setter result)))
-  (interval-for-each (lambda multi-index
-                       (apply result-setter
-                              (apply getter
-                                     multi-index)
-                              multi-index))
-                     domain)
+                                "(<var>'safe?)")))
+  (array-assign! result "(<var>'array)")
   result)"))
 (<p> "It is guaranteed that "(<code>"(array-getter "(<var>'array)")")" is called precisely once for each multi-index in "(<code>"(array-domain "(<var>'array)")")" in lexicographical order.")
 (<p> "It is an error if "(<code>(<var>'result-storage-class))" does not satisfy these conditions, or if "(<code>(<var>'safe?))" is not a boolean.")
@@ -1274,6 +1270,12 @@ calls")
 (format-lambda-list '(list->specialized-array l interval  #\[ result-storage-class "generic-storage-class" #\] #\[ safe? "(specialized-array-default-safe?)" #\]))
 (<p> "Returns a specialized-array with domain "(<code>(<var>'interval))" whose elements are the elements of the list "(<code>(<var>'l))" stored in lexicographical order.  It is an error if "(<code>(<var>'l))" is not a list, if "(<code>(<var>'interval))" is not an interval, if the length of "(<code>(<var>'l))" is not the same as the volume of  "(<code>(<var>'interval))", if "(<code>(<var>'result-storage-class))" (when given) is not a storage class, if "(<code>(<var>'safe?))" (when given) is not a boolean, or if any element of  "(<code>(<var>'l))" cannot be stored in the body of "(<code>(<var>'result-storage-class))", and this last error shall be detected and raised if "(<code>(<var>'safe))" is "(<code>'#t)".")
 
+(format-lambda-list '(array-assign! destination source))
+(<p> "Assumes that "(<code>(<var>'destination))" is a mutable array and "(<code>(<var>'source))" is an array, both with the same domains, and that the elements of "(<code>(<var>'source))" can be stored into "(<code>(<var>'destination))".")
+(<p> "Evaluates "(<code>"(array-getter "(<var>'source)")")" on the multi-indices in "(<code>"(array-domain "(<var>'source)")")" in lexicographical order, "
+     "and associates each value to the same multi-index in "(<code>(<var>'destination))".")
+(<p> "It is an error if the arguments don't satisfy these assumptions.")
+
 (<h2> "Implementation")
 (<p> "We provide an implementation in Gambit-C; the nonstandard techniques used
 in the implementation are: DSSSL-style optional and keyword arguments; a
@@ -1683,6 +1685,101 @@ Reconstructed image:
   -.9999999999999993))
 " )
 (<p> "In perfect arithmetic, this Haar transform is "(<i>'orthonormal)", in that the sum of the squares of the elements of the image is the same as the sum of the squares of the Haar coefficients of the image.  We can see that this is approximately true here.")
+
+(<p> (<b> "Gaussian elimination. ")"Given a square matrix $A$ we can overwrite $A$ with lower-triangular matrix $L$ with ones on the diagonal and upper-triangular
+matrix $U$ so that $A=LU$ as follows. (We assume \"pivoting\" isn't needed.) For example, if "
+     "$$A=\\begin{pmatrix} a_{11}&a_{12}&a_{13}\\\\ a_{21}&a_{22}&a_{23}\\\\ a_{31}&a_{32}&a_{33}\\end{pmatrix}=\\begin{pmatrix} 1&0&0\\\\ \\ell_{21}&1&0\\\\ \\ell_{31}&\\ell_{32}&1\\end{pmatrix}\\begin{pmatrix} u_{11}&u_{12}&u_{13}\\\\ 0&u_{22}&u_{23}\\\\ 0&0&u_{33}\\end{pmatrix}$$ then $A$ is overwritten with
+$$
+\\begin{pmatrix} u_{11}&u_{12}&u_{13}\\\\ \\ell_{21}&u_{22}&u_{23}\\\\ \\ell_{31}&\\ell_{32}&u_{33}\\end{pmatrix}.
+$$")
+(<pre>
+ (<code>"
+(define (LU-decomposition A)
+  ;; Assumes the domain of A is [0,n)\\times [0,n)
+  ;; and that Gaussian elimination can be applied
+  ;; without pivoting.
+  (let ((n
+         (interval-upper-bound (array-domain A) 0))
+        (getter
+         (array-getter A)))
+    (do ((i 0 (fx+ i 1)))
+        ((= i (fx- n 1)) A)
+      (let* ((pivot
+              (getter i i))
+             (column
+              ;; the column below the (i,i) entry
+              (array-extract
+               A (make-interval
+                  (vector (fx+ i 1) i)
+                  (vector n         (fx+ i 1)))))
+             ;; the subarray to the right and
+             ;;below the (i,i) entry
+             (subarray
+              (array-extract
+               A (make-interval
+                  (vector (fx+ i 1) (fx+ i 1))
+                  (vector n         n)))))
+        ;; compute multipliers
+        (array-assign!
+         column
+         (array-map (lambda (x)
+                      (/ x pivot))
+                    column))
+        ;; subtract the outer product of i'th
+        ;; row and column from the subarray
+        (array-assign!
+         subarray
+         (array-map -
+                    subarray
+                    (make-array
+                     (array-domain subarray)
+                     (lambda (l m)
+                       (* (getter l i)
+                          (getter i m))))))))))
+
+(define A
+  (array->specialized-array
+   (make-array (make-interval '#(0 0)
+                              '#(4 4))
+               (lambda (i j)
+                 (/ (+ 1 i j))))))
+
+(define (array-display A)
+  (array-for-each
+   (lambda (row)
+     (array-for-each (lambda (x)
+                       (display x)
+                       (display \"\\t\"))
+                     row)
+     (newline))
+   (array-curry A 1)))
+
+(display \"\\nHilbert matrix:\\n\\n\")
+
+(array-display A)
+
+;;; which displays:
+;;; 1       1/2     1/3     1/4
+;;; 1/2     1/3     1/4     1/5
+;;; 1/3     1/4     1/5     1/6
+;;; 1/4     1/5     1/6     1/7
+
+(LU-decomposition A)
+
+(display \"\\nLU decomposition of Hilbert matrix:\\n\\n\")
+
+(array-display A)
+
+;;; which displays:
+;;; 1       1/2     1/3     1/4
+;;; 1/2     1/12    1/12    3/40
+;;; 1/3     1       1/180   1/120
+;;; 1/4     9/10    3/2     1/2800
+
+"))
+            
+            
+        
 
 (<h2> "Acknowledgments")
 (<p> "The SRFI author thanks Edinah K Gnang, John Cowan, Sudarshan S Chawathe, Jamison Hope, and Per Bothner for their comments and suggestions, and Arthur A Gleckler, SRFI Editor, for his guidance and patience.")

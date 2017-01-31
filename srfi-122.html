@@ -1,10 +1,8 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
-  <head>
-    <meta charset="utf-8" />
+  <head><meta charset="utf-8">
     <title>Nonempty Intervals and Generalized Arrays</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="/srfi.css" type="text/css" />
+    <link rel="stylesheet" href="http://srfi.schemers.org/srfi.css">
     <script type="text/x-mathjax-config">
       MathJax.Hub.Config({
         tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
@@ -36,6 +34,8 @@
       <li>Draft #14 published: 2016/11/28</li>
       <li>Draft #15 published: 2016/12/15</li>
       <li>Finalized: 2016/12/24</li></ul>
+    <h2>Post-finalization note</h2>
+    <p>This document, the associated implementation in generic-arrays.scm, and the test file test-arrays.scm includes a procedure <code>array-assign!</code> that is not in the SRFI as finalized on 2016/12/24.</p>
     <h2>Abstract</h2>
     <p>This SRFI specifies an array mechanism for Scheme. Arrays as defined here are quite general; at their most basic, an array is simply a mapping, or function, from multi-indices of exact integers $i_0,\ldots,i_{d-1}$ to Scheme values.  The set of multi-indices $i_0,\ldots,i_{d-1}$ that are valid for a given array form the <i>domain</i> of the array.  In this SRFI, each array's domain consists  of a rectangular interval $[l_0,u_0)\times[l_1,u_1)\times\cdots\times[l_{d-1},u_{d-1})$, a subset of $\mathbb Z^d$, $d$-tuples of integers.  Thus, we introduce a data type called <i>intervals</i>, which encapsulate the cross product of nonempty intervals of exact integers. Specialized variants of arrays are specified to provide portable programs with efficient representations for common use cases.</p>
     <h2>Overview</h2>
@@ -173,7 +173,8 @@
         <a href="#array-any">array-any</a>,
         <a href="#array-every">array-every</a>,
         <a href="#array-&gt;list">array-&gt;list</a>,
-        <a href="#list-&gt;specialized-array">list-&gt;specialized-array</a>.</dd></dl>
+        <a href="#list-&gt;specialized-array">list-&gt;specialized-array</a>,
+        <a href="#array-assign!">array-assign!</a>.</dd></dl>
     <h2>Miscellaneous Functions</h2>
     <p>This document refers to <i>translations</i> and <i>permutations</i>.
        A translation is a vector of exact integers.  A permutation of dimension $n$
@@ -599,24 +600,15 @@ indexer:       (lambda multi-index
     <p>This &quot;shearing&quot; operation cannot be achieved by combining the procedures <code>array-extract</code>, <code>array-translate</code>, <code>array-permute</code>, <code>array-translate</code>, <code>array-curry</code>, <code>array-reverse</code>, and <code>array-sample</code>.</p>
     <p><b>Procedure: </b><code><a name="array-&gt;specialized-array">array-&gt;specialized-array</a> <var>array</var> [ <var>result-storage-class</var> generic-storage-class ] [ <var>safe?</var> (specialized-array-default-safe?) ]</code></p>
     <p>If <code><var>array</var></code> is an array whose elements can be manipulated by the storage-class
-      <code><var>result-storage-class</var></code>, then the specialized-array returned by <code>array-&gt;specialized-array</code> can be defined by:</p>
+      <code><var>result-storage-class</var></code>, then the specialized-array returned by <code>array-&gt;specialized-array</code> can be defined conceptually by:</p>
     <pre><code>
 (let* ((domain
         (array-domain <var>array</var>))
-       (getter
-        (array-getter <var>array</var>))
        (result
         (make-specialized-array domain
                                 <var>result-storage-class</var>
-                                <var>safe?</var>))
-       (result-setter
-        (array-setter result)))
-  (interval-for-each (lambda multi-index
-                       (apply result-setter
-                              (apply getter
-                                     multi-index)
-                              multi-index))
-                     domain)
+                                <var>safe?</var>)))
+  (array-assign! result <var>array</var>)
   result)</code></pre>
     <p>It is guaranteed that <code>(array-getter <var>array</var>)</code> is called precisely once for each multi-index in <code>(array-domain <var>array</var>)</code> in lexicographical order.</p>
     <p>It is an error if <code><var>result-storage-class</var></code> does not satisfy these conditions, or if <code><var>safe?</var></code> is not a boolean.</p>
@@ -740,8 +732,8 @@ indexer:       (lambda multi-index
                multi-index
                (vector-&gt;list <var>translation</var>)))))
 </code></pre>
-<p>that shares the body of <code><var>array</var></code>.</p>
-    <P>If <code><var>array</var></code> is not a specialized array but is a mutable array, returns a new mutable array</p>
+    <p>that shares the body of <code><var>array</var></code>.</p>
+    <p>If <code><var>array</var></code> is not a specialized array but is a mutable array, returns a new mutable array</p>
     <pre><code>
 (make-array 
  (interval-translate (array-domain <var>array</var>)
@@ -966,6 +958,10 @@ indexer:       (lambda multi-index
     <p>Stores the elements of <code><var>array</var></code> into a newly-allocated list in lexicographical order.  It is an error if <code><var>array</var></code> is not an array.</p>
     <p><b>Procedure: </b><code><a name="list-&gt;specialized-array">list-&gt;specialized-array</a> <var>l</var> <var>interval</var> [ <var>result-storage-class</var> generic-storage-class ] [ <var>safe?</var> (specialized-array-default-safe?) ]</code></p>
     <p>Returns a specialized-array with domain <code><var>interval</var></code> whose elements are the elements of the list <code><var>l</var></code> stored in lexicographical order.  It is an error if <code><var>l</var></code> is not a list, if <code><var>interval</var></code> is not an interval, if the length of <code><var>l</var></code> is not the same as the volume of  <code><var>interval</var></code>, if <code><var>result-storage-class</var></code> (when given) is not a storage class, if <code><var>safe?</var></code> (when given) is not a boolean, or if any element of  <code><var>l</var></code> cannot be stored in the body of <code><var>result-storage-class</var></code>, and this last error shall be detected and raised if <code><var>safe</var></code> is <code>#t</code>.</p>
+    <p><b>Procedure: </b><code><a name="array-assign!">array-assign!</a> <var>destination</var> <var>source</var></code></p>
+    <p>Assumes that <code><var>destination</var></code> is a mutable array and <code><var>source</var></code> is an array, both with the same domains, and that the elements of <code><var>source</var></code> can be stored into <code><var>destination</var></code>.</p>
+    <p>Evaluates <code>(array-getter <var>source</var>)</code> on the multi-indices in <code>(array-domain <var>source</var>)</code> in lexicographical order, and associates each value to the same multi-index in <code><var>destination</var></code>.</p>
+    <p>It is an error if the arguments don't satisfy these assumptions.</p>
     <h2>Implementation</h2>
     <p>We provide an implementation in Gambit-C; the nonstandard techniques used
       in the implementation are: DSSSL-style optional and keyword arguments; a
@@ -1359,6 +1355,95 @@ Reconstructed image:
   -.9999999999999993))
 </pre>
     <p>In perfect arithmetic, this Haar transform is <i>orthonormal</i>, in that the sum of the squares of the elements of the image is the same as the sum of the squares of the Haar coefficients of the image.  We can see that this is approximately true here.</p>
+    <p><b>Gaussian elimination. </b>Given a square matrix $A$ we can overwrite $A$ with lower-triangular matrix $L$ with ones on the diagonal and upper-triangular
+      matrix $U$ so that $A=LU$ as follows. (We assume &quot;pivoting&quot; isn't needed.) For example, if $$A=\begin{pmatrix} a_{11}&amp;a_{12}&amp;a_{13}\\ a_{21}&amp;a_{22}&amp;a_{23}\\ a_{31}&amp;a_{32}&amp;a_{33}\end{pmatrix}=\begin{pmatrix} 1&amp;0&amp;0\\ \ell_{21}&amp;1&amp;0\\ \ell_{31}&amp;\ell_{32}&amp;1\end{pmatrix}\begin{pmatrix} u_{11}&amp;u_{12}&amp;u_{13}\\ 0&amp;u_{22}&amp;u_{23}\\ 0&amp;0&amp;u_{33}\end{pmatrix}$$ then $A$ is overwritten with
+      $$
+      \begin{pmatrix} u_{11}&amp;u_{12}&amp;u_{13}\\ \ell_{21}&amp;u_{22}&amp;u_{23}\\ \ell_{31}&amp;\ell_{32}&amp;u_{33}\end{pmatrix}.
+      $$</p>
+    <pre><code>
+(define (LU-decomposition A)
+  ;; Assumes the domain of A is [0,n)\times [0,n)
+  ;; and that Gaussian elimination can be applied
+  ;; without pivoting.
+  (let ((n
+         (interval-upper-bound (array-domain A) 0))
+        (getter
+         (array-getter A)))
+    (do ((i 0 (fx+ i 1)))
+        ((= i (fx- n 1)) A)
+      (let* ((pivot
+              (getter i i))
+             (column
+              ;; the column below the (i,i) entry
+              (array-extract
+               A (make-interval
+                  (vector (fx+ i 1) i)
+                  (vector n         (fx+ i 1)))))
+             ;; the subarray to the right and
+             ;;below the (i,i) entry
+             (subarray
+              (array-extract
+               A (make-interval
+                  (vector (fx+ i 1) (fx+ i 1))
+                  (vector n         n)))))
+        ;; compute multipliers
+        (array-assign!
+         column
+         (array-map (lambda (x)
+                      (/ x pivot))
+                    column))
+        ;; subtract the outer product of i'th
+        ;; row and column from the subarray
+        (array-assign!
+         subarray
+         (array-map -
+                    subarray
+                    (make-array
+                     (array-domain subarray)
+                     (lambda (l m)
+                       (* (getter l i)
+                          (getter i m))))))))))
+
+(define A
+  (array-&gt;specialized-array
+   (make-array (make-interval '#(0 0)
+                              '#(4 4))
+               (lambda (i j)
+                 (/ (+ 1 i j))))))
+
+(define (array-display A)
+  (array-for-each
+   (lambda (row)
+     (array-for-each (lambda (x)
+                       (display x)
+                       (display &quot;\t&quot;))
+                     row)
+     (newline))
+   (array-curry A 1)))
+
+(display &quot;\nHilbert matrix:\n\n&quot;)
+
+(array-display A)
+
+;;; which displays:
+;;; 1       1/2     1/3     1/4
+;;; 1/2     1/3     1/4     1/5
+;;; 1/3     1/4     1/5     1/6
+;;; 1/4     1/5     1/6     1/7
+
+(LU-decomposition A)
+
+(display &quot;\nLU decomposition of Hilbert matrix:\n\n&quot;)
+
+(array-display A)
+
+;;; which displays:
+;;; 1       1/2     1/3     1/4
+;;; 1/2     1/12    1/12    3/40
+;;; 1/3     1       1/180   1/120
+;;; 1/4     9/10    3/2     1/2800
+
+</code></pre>
     <h2>Acknowledgments</h2>
     <p>The SRFI author thanks Edinah K Gnang, John Cowan, Sudarshan S Chawathe, Jamison Hope, and Per Bothner for their comments and suggestions, and Arthur A Gleckler, SRFI Editor, for his guidance and patience.</p>
     <h2>References</h2>
