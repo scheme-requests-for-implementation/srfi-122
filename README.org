@@ -2,6 +2,8 @@
 
 ** by Bradley J. Lucier
 
+
+
 This repository hosts [[https://srfi.schemers.org/srfi-122/][SRFI 122]]: Nonempty Intervals and Generalized Arrays, a [[https://srfi.schemers.org/][Scheme Request for Implementation]].
 
 This SRFI is in /final/ status.
